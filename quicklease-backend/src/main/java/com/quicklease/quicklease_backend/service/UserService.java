@@ -9,6 +9,7 @@ import com.quicklease.quicklease_backend.model.User;
 import com.quicklease.quicklease_backend.repository.UserRepository;
 import com.quicklease.quicklease_backend.dto.ProfileRequest;
 import com.quicklease.quicklease_backend.dto.ProfileResponse;
+import org.springframework.beans.factory.annotation.Value;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -30,6 +31,9 @@ public class UserService {
     @Autowired
 private EmailService emailService;
 
+@Value("${app.frontend-url}")
+private String frontendUrl;
+
     public UserResponse registerUser(RegisterRequest request) {
 
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
@@ -48,8 +52,12 @@ private EmailService emailService;
 
         User savedUser = userRepository.save(user);
 
-        String verificationLink = "http://localhost:5173/verify-email?token=" + savedUser.getVerificationToken();
-        emailService.sendVerificationEmail(savedUser.getEmail(), verificationLink);
+        String verificationLink = frontendUrl + "/verify-email?token=" + savedUser.getVerificationToken();
+    try {
+        emailService.sendVerificationEmail(savedUser.getEmail(), verificationLink); 
+    } catch (Exception e) {
+        System.err.println("Could not send verification email: " + e.getMessage());
+    }
         return new UserResponse(savedUser.getId(), savedUser.getEmail(), savedUser.getFullName());
     }
 
@@ -68,10 +76,8 @@ private EmailService emailService;
     }
 
     public String verifyEmail(String token) {
-        User user = userRepository.findAll().stream()
-                .filter(u -> token.equals(u.getVerificationToken()))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Invalid verification token"));
+        User user = userRepository.findByVerificationToken(token)
+        .orElseThrow(() -> new IllegalArgumentException("Invalid verification token"));
 
         user.setEmailVerified(true);
         user.setVerificationToken(null);
